@@ -4,6 +4,59 @@ Each version's section is that release's notes: `tools/build/notes.py` puts it i
 updating, known issues, reporting) for the GitHub release. A section has a summary paragraph, `### Changes` (each with
 its issue, #N), `### Tested` (what was run from the packages before publishing) and optionally `### Known issues`.
 
+## 0.1.12
+
+### Changes
+
+- **Phones as controllers** (Settings → Controls, off by default): a phone on the same Wi-Fi scans the QR code the
+  menu shows and plays from its browser, on Android and iPhone, with nothing to install: buttons on the screen, and
+  steering by tilting the phone like a wheel. Browsers only hand the motion sensors to a page served over HTTPS, so
+  the game serves it with a certificate of its own and the phone asks once to accept it. Each phone is one more
+  gamepad: local multiplayer, the button layout and vibration (Android) work as with any controller, and its
+  gyroscope feeds the game's own motion steering too. Checked without the game: the server, its certificate and the
+  phone as an SDL gamepad (`tests/test_phonepad.py`), and an iPhone on Safari against the same code (the certificate,
+  the buttons, the wheel over its whole travel, no zoom under two thumbs). Not yet on an Android phone, and how the
+  wheel feels in a race needs players' reports.
+- **The Steam Deck renders the race at 720 lines** (#317 by @andreknieriem): the Deck's picture is 1280x720 on its
+  screen, but the 3D scene still rendered at the console's docked 2560x1440. @andreknieriem measured it on a Deck: those
+  passes took 16 of the GPU's 42 ms a frame. The Deck's profile now sets Resolution to 720, and races went from about
+  36 to 24 ms a frame. The menu or `mkw.ini` still pick another one (a Deck on a TV, for instance).
+- **The start screen says how the last game ended**: when it stopped with a known problem, it names the issue that
+  follows it (no need to report it again) or the release that fixes it; an unknown error gets a button to the bug
+  form, asking for `logs/mkw.log`.
+- **Issues**: a report of a known error is closed at once as its duplicate (a reply from its author reopens it), and
+  a report on an older release, quiet for 3 days, is asked to try the latest and closed after 7 days without a reply.
+- **Motion controls for every player** (discussion 302): the gyroscope and accelerometer were read from player 1's
+  controller only, so in local multiplayer players 2 to 8 had no motion; each player's controller now feeds its own.
+- **Thai no longer crashes on game version 1.8.0** (discussion 193): with the game in Thai, loading closed the game
+  (`no function at guest pc main+0x1bb0b34`). Its text code leaves an error with the C library's `longjmp`, which
+  goes back to where `setjmp` saved its place: in translated code that place is the middle of a function. A function
+  that calls `setjmp` now keeps a host return point that the `longjmp` comes back to.
+- **Xbox, PlayStation and keyboard button icons on game version 1.8.0** (#19): 1.8.0's button sheet has two more
+  icons, so the runtime did not recognise it and the prompts kept Nintendo's buttons. The other icons sit where
+  1.0.0 has them, and both sheets are redrawn now.
+- **LAN play picks the home network's address** (discussion 148): with several network adapters, the game could take
+  one that leads nowhere, such as a VirtualBox host-only adapter (192.168.56.1) or one without a DHCP server
+  (169.254.x.x), and two PCs on the same network never saw each other. The address on the network with the default
+  route now comes first, then other local networks, then 169.254.x.x, and VPN /32 addresses last. The log lists the
+  candidates (`nifm: LAN candidate`); `lan_ip` in `mkw.ini` still picks one by hand.
+- **"Choose game folder" in every menu language**: its four texts came in English only in 0.1.11.
+- **Photo mode no longer crashes on game version 1.8.0** (#305): pressing Minus in free roam at 1440 lines closed the
+  game (`main+0xa66e0`): 1.8.0's photo mode, with its stickers, needs render targets the game's buffer pool has no room
+  for. The pool gets a second part of the runtime's own memory for them, as it did at 2160 lines (#255).
+- **No more silent exits in the C runtime on Windows** (#310): a date past the year 3000 given to the game's time
+  service ended the process with no message (code 0xC0000409 in `ucrtbase.dll`); it is now refused as on Linux, and any
+  other call the Windows C runtime rejects writes a crash report with the game's frames to `logs/mkw.log`.
+- **The setup refuses `exefs` and `romfs` from different game versions** (#315): 1.0.0's program with 1.8.0's game
+  files passed the checks and the game crashed while warming up; the setup now says which version each one is.
+- **Unlock everything opens Mirror** (discussion 292): Settings > Hacks > Unlock everything now also offers Mirror in
+  the class select, as the game does after its "Mirror Mode has been unlocked!" notice.
+- **NVIDIA "instruction pointer invalid" crashes, second fix** (#22, #231): 0.1.11's change did not cover Moo Moo
+  Meadows. Every logged case was a pass stuck for 1-1.5 s whose draw has a fragment shader that discards pixels
+  midway (8 of 8, against 30 % of the game's fragment shaders). A discarded pixel now stays as a helper to the end of
+  the shader (Vulkan's demote, as Switch emulators and DXVK do) instead of ending in the middle of it. Verified on the
+  captures (same images) and not on an NVIDIA card.
+
 ## 0.1.11
 
 Choose where the game is installed, by @innateessence; @EdouardSence's fixes for the menu labels, the Linux taskbar
