@@ -4,6 +4,182 @@ Each version's section is that release's notes: `tools/build/notes.py` puts it i
 updating, known issues, reporting) for the GitHub release. A section has a summary paragraph, `### Changes` (each with
 its issue, #N), `### Tested` (what was run from the packages before publishing) and optionally `### Known issues`.
 
+## 0.1.12
+
+### Changes
+
+- **Phones as controllers** (Settings → Controls, off by default): a phone on the same Wi-Fi scans the QR code the
+  menu shows and plays from its browser, on Android and iPhone, with nothing to install: buttons on the screen, and
+  steering by tilting the phone like a wheel. Browsers only hand the motion sensors to a page served over HTTPS, so
+  the game serves it with a certificate of its own and the phone asks once to accept it. Each phone is one more
+  gamepad: local multiplayer, the button layout and vibration (Android) work as with any controller, and its
+  gyroscope feeds the game's own motion steering too. Checked without the game: the server, its certificate and the
+  phone as an SDL gamepad (`tests/test_phonepad.py`), and an iPhone on Safari against the same code (the certificate,
+  the buttons, the wheel over its whole travel, no zoom under two thumbs). Not yet on an Android phone, and how the
+  wheel feels in a race needs players' reports.
+- **The Steam Deck renders the race at 720 lines** (#317 by @andreknieriem): the Deck's picture is 1280x720 on its
+  screen, but the 3D scene still rendered at the console's docked 2560x1440. @andreknieriem measured it on a Deck: those
+  passes took 16 of the GPU's 42 ms a frame. The Deck's profile now sets Resolution to 720, and races went from about
+  36 to 24 ms a frame. The menu or `mkw.ini` still pick another one (a Deck on a TV, for instance).
+- **The start screen says how the last game ended**: when it stopped with a known problem, it names the issue that
+  follows it (no need to report it again) or the release that fixes it; an unknown error gets a button to the bug
+  form, asking for `logs/mkw.log`.
+- **Issues**: a report of a known error is closed at once as its duplicate (a reply from its author reopens it), and
+  a report on an older release, quiet for 3 days, is asked to try the latest and closed after 7 days without a reply.
+- **Motion controls for every player** (discussion 302): the gyroscope and accelerometer were read from player 1's
+  controller only, so in local multiplayer players 2 to 8 had no motion; each player's controller now feeds its own.
+- **Thai no longer crashes on game version 1.8.0** (discussion 193): with the game in Thai, loading closed the game
+  (`no function at guest pc main+0x1bb0b34`). Its text code leaves an error with the C library's `longjmp`, which
+  goes back to where `setjmp` saved its place: in translated code that place is the middle of a function. A function
+  that calls `setjmp` now keeps a host return point that the `longjmp` comes back to.
+- **Xbox, PlayStation and keyboard button icons on game version 1.8.0** (#19): 1.8.0's button sheet has two more
+  icons, so the runtime did not recognise it and the prompts kept Nintendo's buttons. The other icons sit where
+  1.0.0 has them, and both sheets are redrawn now.
+- **LAN play picks the home network's address** (discussion 148): with several network adapters, the game could take
+  one that leads nowhere, such as a VirtualBox host-only adapter (192.168.56.1) or one without a DHCP server
+  (169.254.x.x), and two PCs on the same network never saw each other. The address on the network with the default
+  route now comes first, then other local networks, then 169.254.x.x, and VPN /32 addresses last. The log lists the
+  candidates (`nifm: LAN candidate`); `lan_ip` in `mkw.ini` still picks one by hand.
+- **"Choose game folder" in every menu language**: its four texts came in English only in 0.1.11.
+- **Photo mode no longer crashes on game version 1.8.0** (#305): pressing Minus in free roam at 1440 lines closed the
+  game (`main+0xa66e0`): 1.8.0's photo mode, with its stickers, needs render targets the game's buffer pool has no room
+  for. The pool gets a second part of the runtime's own memory for them, as it did at 2160 lines (#255).
+- **No more silent exits in the C runtime on Windows** (#310): a date past the year 3000 given to the game's time
+  service ended the process with no message (code 0xC0000409 in `ucrtbase.dll`); it is now refused as on Linux, and any
+  other call the Windows C runtime rejects writes a crash report with the game's frames to `logs/mkw.log`.
+- **The setup refuses `exefs` and `romfs` from different game versions** (#315): 1.0.0's program with 1.8.0's game
+  files passed the checks and the game crashed while warming up; the setup now says which version each one is.
+- **Unlock everything opens Mirror** (discussion 292): Settings > Hacks > Unlock everything now also offers Mirror in
+  the class select, as the game does after its "Mirror Mode has been unlocked!" notice.
+- **NVIDIA "instruction pointer invalid" crashes, second fix** (#22, #231): 0.1.11's change did not cover Moo Moo
+  Meadows. Every logged case was a pass stuck for 1-1.5 s whose draw has a fragment shader that discards pixels
+  midway (8 of 8, against 30 % of the game's fragment shaders). A discarded pixel now stays as a helper to the end of
+  the shader (Vulkan's demote, as Switch emulators and DXVK do) instead of ending in the middle of it. Verified on the
+  captures (same images) and not on an NVIDIA card.
+
+## 0.1.11
+
+Choose where the game is installed, by @innateessence; @EdouardSence's fixes for the menu labels, the Linux taskbar
+icon and LAN Play over a VPN; @guillo1990's free roam hitches and GPU hang reports; the Shy Guy Bazaar triangles by
+@flavio-silva; @tibor-stick's AMD GPU resets on Linux; @andreknieriem's Steam Deck memory; @SavageCore's game folder
+updates; handheld resolution by @titooo7; and a faster start on AMD cards on Linux.
+
+### Changes
+
+- **Choose where the game is installed** (#224 by @innateessence, #284): the game files always went beside the
+  launcher (on Linux `~/.local/share/mkw-recomp`), and a folder moved elsewhere was set up again in the old place.
+  @innateessence added "Choose game folder" to the files page: the game files, saves, mods, logs and shader caches go
+  to the folder you pick (a new one is set up there; an existing installation is used as it is), the launcher's own
+  `mkw.ini` only remembers which folder, and `MKW_GAME_DIR` overrides it. With no folder picked everything stays
+  where it was.
+- **Frame hitches in free roam from a pass rendered one layer at a time** (#296 by @guillo1990): a draw whose
+  pipeline is still being built is skipped when its target was rendered recently, and the frame waits for it when it
+  was not (a volume or table drawn only once). @guillo1990 found a free roam pass that renders one of its 12 layers
+  each frame, so every layer looked like a one-shot draw and the frame waited 36 to 43 ms for the pipeline. Rendered
+  within the last 16 frames now counts as recent.
+- **GPU hangs that the driver never reports now leave a report in the log** (#297 by @guillo1990): on NVIDIA 620.70.06
+  (Linux) the GPU stopped with Xid 109 while the game stayed open and the log said nothing (#13 and #206 looked the
+  same). @guillo1990 added a check: when the GPU has not finished a submission in 5 s, the log names what it had
+  started and not finished, with every step between them and the shader programs involved.
+- **GPU memory left empty when video memory runs low** (#295 by @andreknieriem): on a Steam Deck (1 GB of video
+  memory, low preset, 1.8.0 time trial) the game's GPU memory pools got their memory in 4 MiB pieces, and a piece
+  that did not fit was left empty while released render targets still held 2 601 MiB. @andreknieriem found that this
+  was the only allocation that gave up at once; it now drops released and idle textures first and tries again, as
+  textures and upload buffers already did.
+- **AMD GPU resets with "Illegal opcode in command stream" on Linux** (#281 by @tibor-stick; #43, #50): the thread
+  that records the GPU commands told the submitting thread it had finished while its last commands could still be in
+  the CPU's write-combining buffers, so the GPU sometimes ran leftovers of an earlier recording and the driver reset
+  it. @tibor-stick found it with a patched RADV that checks every command buffer when it is recorded and again when
+  it is submitted (108 broken in a 106 s run); the recorder now flushes those buffers before it says it is done.
+- **About 6 fps at the title on Intel Meteor Lake** (#283, #289): the Intel driver there (Mesa 25.3 and 26.0) has no
+  memory that is both cached and coherent, so the copies of game memory the GPU reads, kept in sync every frame, went
+  into uncached memory and the CPU read them at about 0.25 GB/s. They now use the cached memory and write it out and
+  read it back explicitly (`MKW_SHADOW_CACHED=0` restores the old choice). Not yet confirmed on that hardware.
+- **Profiles in the launcher** (discussion #288): the name the game showed was always "Local". The start screen now
+  has a Profiles page, opened from the "Profile: name" row under Play: each profile has its own name (up to 10
+  characters, as on the console; also what LAN players see) and its own save, and the one marked Playing is the one
+  the next start plays. The save you already have is the first profile, named "Player" until you rename it; removing
+  a profile takes it off the list and keeps its save in `profile/players/deleted`.
+- **Crash at 2160p on game version 1.8.0** (#255, #210): with the internal resolution at 2160 the game's render-buffer
+  pool (250 MiB, sized for the console's 1440-line targets) ran out at the title screen and the game died in
+  `ShadowPrePass`. The second pool now comes from memory the runtime reserves beside the game's heap, sized by the
+  resolution and the shadow map, so it fits at any resolution without taking memory from the game. The game logic is
+  checked; the 2160 picture itself still needs a GPU with memory for it (the developer's Radeon 660M runs out).
+- **Play no longer hangs after many mod changes**: before the first start with a new set of mods the launcher copies
+  the save to `save-before-mods` and keeps the newest 10 copies, but it was not allowed to delete the older ones and
+  tried again forever, so the 11th change of mods froze the launcher on Play. The old copies are now deleted (only
+  those dated folders), and the launcher goes on if one cannot be.
+- **Reset all settings keeps your mods**: it also emptied the list of enabled mods.
+- **Giant triangles over Shy Guy Bazaar** (#291 by @flavio-silva, #72): for single frames the 3D scene was covered by
+  huge triangles there. MKW fills its instanced characters' animations on the GPU into pitch textures of 70-190 KiB
+  and its CPU code reads their bytes in place every frame; only targets up to 64 KiB went back to memory at a fence
+  wait, so the bones read zeros or stale bytes. @flavio-silva traced it down to the two game functions and the
+  textures; pitch textures now go back at the fence whatever their size: 0 wrong frames in his Flower Cup, from 16-75
+  per 600.
+- **NVIDIA: the device loss with "instruction pointer invalid"** (#22, also #112 #133 #137 #142 #166 #189 #203 #208
+  #212 #219 #221 #230 #231 and discussion #139): the Shell Cup after its video, Star High Sundae's lap 2, Moo Moo
+  Meadows after the cows and the Special Cup's unlock animation stopped the GPU on drivers 616-621, Turing to
+  Blackwell. The draws that fault use vertex shaders that read a constant bank at an address computed from a vertex
+  attribute; the shader that faults and its twin that does not differ only in one such read (`c74a0d4e` and
+  `852f48d6`). Those reads went through a second uniform block declared on the same binding as the bank, the only
+  aliased binding of the translation; they now go through a read-only storage view of their own binding, bounded by
+  its range, as the console's bank. Verified on the captures (same images) and not on an NVIDIA card: the
+  `skip_programs` workaround stays, and this is the version to try without it.
+- **Internal resolution in handheld mode** (#248 by @titooo7, #195): with Settings > Graphics > Operation mode on
+  Handheld, the 3D scene rendered well above the chosen resolution (1476x828 for 540p), as the game draws all of its
+  3D lines there and only 65 % of them docked. @titooo7 measured both modes on an AYN Odin 2 and the setting now
+  gives the chosen lines in either; the log line names the mode.
+- **Menu labels no longer mix with other labels' letters** (#250 by @EdouardSence, #61): on AMD cards on Linux,
+  menu texts drew another frame's glyphs for a frame. @EdouardSence traced it, on an RX 9070 XT, to pages of game
+  memory the GPU copy took from a shadow that did not have them yet, and measured each step: 2 947 stale pages before
+  the fix, 8 after, and no swapped labels on screen.
+- **The game's icon in the Linux taskbar** (#252 by @EdouardSence): on Wayland (KDE Plasma and other compositors with
+  window icons) the game's and the start screen's windows showed a generic icon; they now carry the chequered flag.
+- **Updating a game folder to another version no longer keeps the old version's files** (#261 by @SavageCore): a
+  folder set up from 1.0.0 and then from 1.8.0 kept 1.0.0's files next to 1.8.0's, and the internal resolution was
+  built from 1.0.0's `general_format` archive. @SavageCore found it on a 23 GB install, where the setup now removed
+  203 files 1.8.0 does not have; the same cleanup also runs for `.nup` and `.nx` copies, and never in a linked folder.
+- A setup that stops before doing anything leaves a log now (#251): `logs/setup.log` is opened first, and while the
+  setup runs it writes there every two minutes where it is waiting.
+- The setup compiles with more jobs where memory held it back: a compile was given 1 GB and takes at most 0.4 (a
+  12-thread PC with 13 GB went from 8 to 12 jobs, 330 s to 302 s for the game's code; an 8 GB PC with 8 threads from
+  4 to 8). `logs/setup.log` now says how long each step took.
+- **LAN Play with a VPN such as Tailscale** (#245 by @EdouardSence, discussion #148): entering LAN Play went straight
+  back to the menu (error 2318-0007) when the VPN's adapter came first, as the game took its /32 address. @EdouardSence
+  found it in the reporter's log and reproduced it on Linux; the port now takes an address with a real network first,
+  and says in the log when only a /32 one is left.
+- 48:9 for three screens side by side (discussion #264): Settings > Graphics > Aspect ratio now offers 48:9 (5760x1080,
+  7680x1440 on NVIDIA Surround or AMD Eyefinity) beside 21:9 and 32:9. Races show more at the sides and the menus and
+  HUD keep their shape; "window" already took that shape from a full-screen window.
+- The start screen in Thai, Japanese, Korean or Chinese (discussion #193): its title, Play button and page names showed
+  `?` for every letter, as only the small text took the system font with that script; they all do now. The log also
+  says which language the game was given and whether the setting or the system's locale chose it.
+- With Settings > Game > Language on Automatic, the game follows the language chosen in Settings > Menu > Language
+  when the game has it (discussion #193): picking Thai there gives the game in Thai too after a restart, instead of
+  the system's language. A menu language the game lacks (Turkish, Ukrainian) still leaves it to the system.
+- **Terrain on GPUs whose sparse textures take other memory than buffers** (#215, GTX 750 Ti): the terrain's texture
+  tiles came from memory shared with a buffer used to clear them, and on that card no memory type serves both, so not
+  one tile could be made and the driver then lost the device at the loading screen. Those tiles now take the
+  texture's own memory type, without the clearing buffer. Checked on our cards by forcing that path (same images).
+- **The picture fills the window when the driver's surface is larger** (#140, ROG Ally with Windows at 1280x720): the
+  driver gave a 1920x1080 surface for the 1280x720 window, the picture was fitted to 1920x1080 and Windows showed its
+  top-left part, off-centre and cut. The picture now goes in the part the window shows.
+- **The HDR setting is kept** (#168): Settings > Screen > HDR was written to `mkw.ini` but dropped at the next start
+  ("unknown key 'HDR'" in the log).
+- **A faster start, and a smoother loading screen, on AMD cards on Linux**: the terrain's sparse textures were bound to
+  their memory one 64 KiB block at a time, 11 471 driver calls in one frame of the logo (a hitch of 1.5 s) and about
+  20 000 more while the loading screen ran at about 10 fps. The blocks of a row now bind as one; on a Radeon 660M the
+  logo hitch is 0.5 s shorter, the loading screen goes from 6-7 s to 5 s and the title comes 1.7 s earlier.
+
+### Tested
+
+From these packages, before publishing:
+
+- The whole setup on Linux (Radeon 660M, RADV) in 15 minutes, its warm-up 1 087 frames without a fault, and on
+  Windows 11 (GTX 1050 Ti) in 25 minutes, its warm-up to the end without a fault.
+- Before the tag, on `main`: the sparse bind change against the title capture (same images as the reference), and
+  boot runs to the title on the Radeon 660M.
+
 ## 0.1.10
 
 Mods in the start screen, from @SavageCore's work, with GameBanana's mods a click away; Unlock everything on 1.8.0 by
