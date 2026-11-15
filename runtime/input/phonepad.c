@@ -151,7 +151,10 @@ static void pad_log(void *ctx, const char *line) {
 // new ones, saved. 0 when the system gives no random numbers.
 static int saved_load(const uint8_t ip[4], Saved *out) {
     char path[PLAT_PATH_MAX * 2];
-    snprintf(path, sizeof path, "%s/phonepad.bin", cfg_game_dir());
+    // 0.1.10 has no game folder setting: the file goes beside the executable, where mkw.ini is
+    char dir[PLAT_PATH_MAX] = ".";
+    if (plat_exe_path(dir, sizeof dir) && plat_last_sep(dir)) *plat_last_sep(dir) = 0;
+    snprintf(path, sizeof path, "%s/phonepad.bin", dir);
     int64_t now = (int64_t)(plat_unix_time_ns() / 1000000000ull);
     uint64_t size = 0;
     uint8_t *file = plat_file_read(path, &size);
